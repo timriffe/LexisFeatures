@@ -59,6 +59,76 @@ ggsave("figures/unprocessed/use_case_2_bhps/mean_ghq12_by_gender.png", width = 2
   
 # Standard aesthetics
 
+# GHQ12 by age and highest qualification
+
+
+all_inds_drvs %>% 
+  mutate(
+    year = wave + 1990
+  ) %>% 
+  filter(!is.na(sex) & !is.na(age) & !is.na(year) & !is.na(ghq) & !is.na(highqual)) %>% 
+  mutate(highqual = car::recode(
+    highqual, 
+    "
+    'further non-vocational' = 'High';
+    'further vocational' = 'Med';
+    'no further' = 'Low'
+    ",
+    levels = c("Low", "Med", "High"), as.factor.result =T
+  ),
+  sex = car::recode(sex, "'male' = 'M'; 'female' = 'F'")
+  ) %>% 
+  select(year, age, sex, highqual, ghq) %>% 
+  arrange(year, sex, highqual, age) %>% 
+  group_by(year, sex, highqual, age) %>%  
+  summarise(mean_ghq = mean(ghq, na.rm=T)) %>% 
+  ungroup() %>% 
+  select(sex, highqual, year, age, mean_ghq) -> tmp
+
+tmp %>% 
+  write.csv("data/csv_tidy/use_case_2_bhps/ghq_mean_by_gender_highqual.csv")
+
+
+
+tmp %>% 
+  filter(!is.na(sex), !is.na(highqual)) %>% 
+  ggplot(aes(x = year, y = age, fill = mean_ghq)) +
+  geom_tile() + 
+  scale_fill_gradientn(
+    colours = scales::brewer_pal(palette = "Paired")(12)
+  ) +
+  coord_equal() +
+  facet_grid(highqual ~ sex)
+
+ggsave("figures/unprocessed/use_case_2_bhps/mean_ghq12_by_gender_highqual.png", width = 20, height = 30, dpi = 300, units = "cm")
+
+
+
+make_matrix <- function(DTA){
+  DTA %>% 
+    select(year, age, mean_ghq) %>% 
+    spread(age, mean_ghq) %>% 
+    as.matrix() %>% 
+    .[,-1]
+}
+
+tmp %>% 
+  group_by(sex, highqual) %>% 
+  nest() %>% 
+  mutate(mtrx = map(data, make_matrix)) %>% 
+  mutate(junk = pmap(
+    list(mtrx, sex, highqual), 
+    function(mtrx, sex, highqual){
+      write.csv(
+        mtrx, row.names=F, 
+        file = file.path("data/csv_tidy/use_case_2_bhps", paste0("mean_ghq_", sex, "_", highqual, ".csv"))
+      )
+      NULL
+    }
+  )
+  )
+
+
 # all_inds_drvs %>% 
 #   mutate(year = wave + 1990) %>% 
 #   select(sex, year, age, ghq) %>% 
